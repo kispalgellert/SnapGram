@@ -1,0 +1,44 @@
+
+--Creating a table with primary Key and auto Increment
+conn.query('CREATE TABLE UsersTest2(id MEDIUMINT NOT NULL AUTO_INCREMENT,name varchar(255), email varchar(255), password varchar(20),PRIMARY KEY (id))', function(err, rows, fields)
+
+--Inserting into user table
+conn.query('Insert into UsersTest2 (name,email,passwordc) VALUES (\'Rob siry\',\'test@email.com\',\'Pass\')', function(err, rows, fields)
+
+
+
+
+
+--Old shit
+// conn.connect();
+
+// // conn.query('SELECT 1 + 1 AS solution', function(err, rows, fields) {
+// //   if (err) throw err;
+
+// //   console.log('The solution is: ', rows[0].solution);
+// // });
+
+// // conn.query('CREATE TABLE UsersTest(name varchar(255), email varchar(255), password varchar(20))', function(err, rows, fields) {
+// //   if (err) throw err;
+
+// //   console.log('table is created');
+// // });
+
+// conn.query('Select name, email, password From UsersTest', function(err, rows, fields) {
+//   if (err) throw err;
+
+//   console.log('The Name is: ', rows[0].name);
+//   console.log('The email is: ', rows[0].email);
+//   console.log('The password is: ', rows[0].password);
+// });
+
+// // conn.query('Insert into UsersTest VALUES (\'Rob siry\',\'test@email.com\',\'Pass\')', function(err, rows, fields) {
+// //   if (err) throw err;
+
+// //   console.log('table is created');
+// // });
+
+
+// conn.end();
+
+//conn.query('CREATE TABLE UsersTest2(id MEDIUMINT NOT NULL AUTO_INCREMENT,name varchar(255), email varchar(255), password varchar(20),PRIMARY KEY (id))', function(err, rows, fields) {
