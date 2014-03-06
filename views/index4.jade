@@ -1,0 +1,67 @@
+
+doctype html
+html(lang='en')
+  head
+    meta(charset='utf-8')
+    meta(name='viewport', content='width=device-width, initial-scale=1.0')
+    meta(name='description', content='')
+    meta(name='author', content='')
+    title Starter Template for Bootstrap
+    // Bootstrap core CSS
+    link(href='/stylesheets/bootstrap.css', rel='stylesheet', type='text/css')
+    // Add custom CSS here
+ 
+  body
+    .navbar.navbar-inverse.navbar-fixed-top(role='navigation')
+      .container
+        .navbar-header
+          button.navbar-toggle(type='button', data-toggle='collapse', data-target='.navbar-collapse')
+            span.sr-only Toggle navigation
+            span.icon-bar
+            span.icon-bar
+            span.icon-bar
+          a.navbar-brand(href='#') SnapGram
+        .navbar-collapse.collapse
+          ul.nav.navbar-nav
+            //
+               <li class="active"><a href="#">Home</a></li> 
+                          <li><a href="#about">About</a></li>  
+            li
+              a(href='#contact') Contact
+          form.navbar-form.navbar-right(role='form')
+            .form-group
+              input.form-control(type='text', placeholder='Email')
+            .form-group
+              input.form-control(type='password', placeholder='Password')
+            button.btn.btn-success(type='submit') Sign in
+        // /.navbar-collapse
+    // Main jumbotron for a primary marketing message or call to action
+    .jumbotron
+      .container
+        h1= email
+        p Start sharing today&excl;
+        p
+          a.btn.btn-primary.btn-lg(role='button') Sign up &raquo;
+    .container
+      // Example row of columns
+      .row
+        
+        
+        - for (var i = 0; i < users.length; i++){
+        .col-md-4
+          h1= users[i].name
+          p
+            | Donec id elit non mi porta gravida at eget metus&period; Fusce dapibus&comma; tellus ac cursus commodo&comma; tortor mauris condimentum nibh&comma; ut fermentum massa justo sit amet risus&period; Etiam porta sem malesuada magna mollis euismod&period; Donec sed odio dui&period;
+          p
+            a.btn.btn-default(href='#', role='button') View details &raquo;
+        - }
+      hr
+      footer
+        p &copy; Company 2014
+    // /container
+    //
+    //   Bootstrap core JavaScript
+    //      ================================================== 
+    // Placed at the end of the document so the pages load faster
+    script(src='https://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js')
+    script(src='/javascripts/bootstrap.min.js')
