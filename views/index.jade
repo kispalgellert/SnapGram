@@ -19,14 +19,9 @@ html(lang='en')
             span.icon-bar
             span.icon-bar
             span.icon-bar
-          a.navbar-brand(href='#') SnapGram
+          a.navbar-brand(href='/') SnapGram
         .navbar-collapse.collapse
-          ul.nav.navbar-nav
-            //
-               <li class="active"><a href="#">Home</a></li> 
-                          <li><a href="#about">About</a></li>  
-            li
-              a(href='#contact') Contact
+          ul.nav.navbar-nav 
           form.navbar-form.navbar-right(role='form', action='http://localhost:1337/signin', method='post')
             .form-group
               input.form-control(type='text', name='email', placeholder='Email')
@@ -36,33 +31,54 @@ html(lang='en')
         // /.navbar-collapse
     // Main jumbotron for a primary marketing message or call to action
     .jumbotron
+      - if (userTest == 1){
+      div.alert.alert-danger
+        !{'Invalid Email'}
+      - }
+      - else if (passTest == 1){
+      div.alert.alert-danger
+        !{'Invalid Password'}
+      - }
       .container
         h1 Welcome to SnapGram
-
         p Start sharing today&excl;
         p
-          a.btn.btn-primary.btn-lg(role='button') Sign up &raquo;
-    .container
-      - if (signedIn == 1){
-      div.alert.alert-danger
-        !{'Please sign in'}
-      - }
-      
-      // Example row of columns
+        a.btn.btn-primary.btn-primary(href='/users/new', role='button') Sign up &raquo
+    section#about.container.content-section.text-center
       .row
-        
-        .col-md-4
-          h1 Test
-          p
-            | Donec id elit non mi porta gravida at eget metus&period; Fusce dapibus&comma; tellus ac cursus commodo&comma; tortor mauris condimentum nibh&comma; ut fermentum massa justo sit amet risus&period; Etiam porta sem malesuada magna mollis euismod&period; Donec sed odio dui&period;
-          p
-            a.btn.btn-default(href='#', role='button') View details &raquo;
-        
+        .col-lg-8.col-lg-offset-2
+          h2 The Future of Photo sharing
+    // Services
+    #services.services
+      .container
+        .row
+          .col-md-4.col-md-offset-4.text-center
+            h2 SnapGram Services
+            hr
+        .row
+          .col-md-2.col-md-offset-2.text-center
+            .service-item
+              h4 Photo sharing made easy
+              p Just simply point your browser to your photo collection
+          .col-md-2.text-center
+            .service-item
+              h4 Social Networking
+              p Follow your friends and see what they&apos;re uploading
+          .col-md-2.text-center
+            .service-item
+              h4 Ease of use
+              p Sign up takes less than a minute&excl; Sign up today to see how easy it is&excl;
+          .col-md-2.text-center
+            .service-item
+              h4 Mutliple photo uploads
+              p With our photo upload form&comma; you can upload mutlpile images at once&excl;
+    // /Services
       hr
       footer
         p &copy; Company 2014
     // /container
     //
+
        Bootstrap core JavaScript
           ================================================== 
     // Placed at the end of the document so the pages load faster

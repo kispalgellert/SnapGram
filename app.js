@@ -3,9 +3,28 @@ var path = require('path');
 var http = require("http");
 var app = express();
 var mysql      = require('mysql');
-var fs = require('fs');
+var fs = require('fs-extra');
 var testing; 
+var currentUser;
+var formidable = require('formidable');
+var gm = require('gm');
+var url = require('url');
+var follows =3;
+var userExist = 0;
+var passExist = 0;
+var invalidEmail = 0;
 
+//Variables for image upload and queries
+var usersimages;
+var time;
+var user;
+
+var types = {
+    "jpeg": "image/jpeg",
+    "jpg": "image/jpeg",
+    "png": "image/png"};
+
+//Express uses these
 app.set('port', process.env.PORT || 1337);
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'jade');
@@ -19,12 +38,7 @@ app.use(express.session({secret: '1234EFGHI'}));
 app.use(express.static(path.join(__dirname, '/public')));
 app.use(app.router);
 
-
-// Use the session and cook parser frameworks
-//app.use(express.cookieParser()); // must be used before sessions
-//app.use(express.session({secret: '1234EFGHI'})); // not really sure what to use for the secret??
-
-
+// Set the database connetion variables
 conn = mysql.createConnection({
   host: 'web2.cpsc.ucalgary.ca',
   user: 's513_sapratte',
@@ -35,212 +49,503 @@ conn = mysql.createConnection({
 //All requests do this
 app.all("*", function(request, response, next) {
 	next();	//This is needed to defer to the next middleware
-	console.log("Request Received");
 });
 
 //Index path
 //Should display index.html
 app.get("/", function(request, response) {
-	
-	conn.query('Select id,name, email, password From UsersTest2', function(err, rows, fields) {
-    if (err) throw err;
-
-    //Printing all results
-    for(var i = 0;i<rows.length;i++)
-    {
-        console.log('\t Record ', i);
-        console.log('The Unique userid is: ', rows[i].id);
-      console.log('The Name is: ', rows[i].name);
-      console.log('The email is: ', rows[i].email);
-      console.log('The password is: ', rows[i].password);
-      console.log('\n')
-    }
-      
-      response.render("index", {users: rows, signedIn : testing});
-  });
-	testing = 0;
+  if(request.session.userid) 
+  {
+    response.redirect("/feed"); //redirect
+  }
+  else
+  {
+    response.render("index",{userTest : userExist, passTest : passExist});
+  }
 });
 
-app.get("/stream", function(request, response) {
-  response.render("stream");
+// Render the signup page after the user presses "Sign up" on the home page
+app.get("/users/new", function(request, response) {
+  response.render("signup");
+});
 
+
+// Display the stream of the specified user
+app.get("/users/:userid", function(request, response) 
+{
+    // Check if current user is signed in
+    if(request.session.userid) 
+    {
+        var usersimages= '';
+        var time = '';
+            
+        // Get the data from Stream table to display images
+        var q = 'Select * From Stream WHERE userid=? ORDER BY date DESC';
+        conn.query(q, [request.params.userid], function(err, rows, fields) {
+                if (err) {
+                    response.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error!"});
+                }
+
+                // Save the data
+                for(var i = 0;i<rows.length;i++) {
+                    if (usersimages === '') {
+                        usersimages = rows[i].path;
+                        time = time_ago_in_words(rows[i].date);
+                    }
+                    else {
+                        usersimages = usersimages + ',' + rows[i].path;
+                        time = time + ',' + time_ago_in_words(rows[i].date);
+                    }
+                }
+            
+                // Get the current users information from the Users table
+                var query = 'Select * from UsersTest2 where id='+request.params.userid
+                conn.query(query, function(err, rows, fields){
+                        if (err) {
+                           response.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error!"});
+                        }
+                        else {
+                           // if the user exists query for followers
+                           if (rows.length){
+                                var q2='select * from Follow where userid='+request.session.userid+' and follows='+request.params.userid
+                                conn.query(q2 , function(err, rows2, fields){
+                                    if (err) {
+                                        response.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error!"});
+                                    }
+                                    else if (request.session.userid == request.params.userid) {
+                                        follows = 99;   //99 because in the jade file it'll disable the follow button
+                                    }
+                                    else if(rows2.length==1) {
+                                        follows = 1;    //Unfollow button is displayed
+                                    }
+                                    else{
+                                        follows = 0;    //Follow button is displayed
+                                    }
+                                    // Render the Stream page
+                                    response.render("stream", {userName: rows[0].name,images: stringToArray(usersimages), following: follows, userId: request.params.userid, currentUId: request.session.userid, navUser : request.session.name, times: stringToArray(time)});
+                                });
+                           }
+                           else{
+                                response.render("error", {userName: request.session.name, errorMSG: "User Doesn't Exist!"});    //render template
+                           }
+                        }
+                });
+        });
+    }
+	else
+	{
+        // If the user is not signed in redirect to the Sign in/up page
+		response.redirect("/users/new");
+	}
+});
+
+// Display the Feed of the specified user
+app.get("/feed", function(request, response)
+{
+    // Check if the current user is signed in
+    if(request.session.userid) {
+        usersimages = '';   //Set varaibles to '' for feed
+        time = '';
+        user = '';
+        var streamID = '';
+        
+        // Query the Stream and Feed tables for user's feed data
+        conn.query('Select Stream.userid,Feed.path,Stream.date,Stream.name From Feed, Stream WHERE Feed.userid=? AND Feed.path=Stream.path ORDER BY Stream.date DESC',[request.session.userid], function(err, rows, fields) {
+            if (err){
+                response.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error!"});
+            }
+            else {
+                for(var i = 0;i<rows.length;i++) {
+                   if (usersimages === '') {
+                        //Getting images
+                        usersimages = rows[i].path;
+                        time = time_ago_in_words(rows[i].date);
+                        user = ''+rows[i].name;
+                        streamID = ''+rows[i].userid;
+                   }
+                   else {
+                        usersimages = usersimages + ',' + rows[i].path;
+                        time = time + ',' + time_ago_in_words(rows[i].date);
+                        user = user + ',' + rows[i].name;
+                        streamID = streamID + ',' + rows[i].userid;
+                   }
+                }
+                //render the feed with all variables
+                response.render("feed", {userName: request.session.name, images: stringToArray(usersimages), times: stringToArray(time), users: stringToArray(user), sessionID: request.session.userid, streamID : stringToArray(streamID)});
+            }
+        });
+    }
+    else {
+        response.redirect("/users/new");    //redirect if not logged in
+    }
+});
+
+
+app.get("/users/:userid/follow", function(request, response, next) {
+        //Inserting a user into the follow table
+    var query = 'Insert into Follow VALUES ('+request.session.userid+','+request.params.userid+')';
+    conn.query(query, function(err, rows, fields) {
+        if (err) throw err;
+        response.redirect("/users/"+request.params.userid);
+    });
+});
+
+
+app.get("/users/:userid/unfollow", function(request, response, next) {
+        //Removing a user from the follow table
+    var query ='DELETE FROM Follow where userid='+request.session.userid+' and follows='+request.params.userid;
+    conn.query(query, function(err, rows, fields) {
+        if (err) throw err;
+        response.redirect("/users/"+request.params.userid);
+    });
+});
+
+
+// Upload an image
+app.get("/photos/new", function(req, res) {
+  if(req.session.userid)
+  {          
+    res.render("upload", {user: req.session.userid, userName: req.session.name});
+    console.log("Go to upload");
+  }
+  else 
+  {
+    res.redirect("/users/new");
+  }
+});
+
+//for display thumbnails
+app.get("/photos/thumbnail/*", function(req, res) {
+    var url_parts = url.parse(req.url, true);
+    var name = path.basename(url_parts.pathname);
+    var type = types[path.extname(name).split(".")[1]];
+
+    img = fs.readFileSync('./public/images/' + name);
+    gm(img, name).resize(400).stream(function streamOut (err,stdout,stderr) {
+        if(err) console.log("Resizing error");
+        else {
+            res.writeHead(200, {'Content-Type': type});
+            var piping = stdout.pipe(res);
+            piping.on('finish', function(){
+            });
+        }
+    });
+});
+
+//For displaying orginal size
+app.get("/photos/*", function(req, res) {
+    var url_parts = url.parse(req.url, true);
+    var name = path.basename(url_parts.pathname);
+    var type = types[path.extname(name).split(".")[1]];
+
+    img = fs.readFileSync('./public/images/' + name);   //reading file
+    gm(img, name).stream(function streamOut (err,stdout,stderr) {
+        if(err) console.log("Resizing error");
+        else {
+            res.writeHead(200, {'Content-Type': type});
+            var piping = stdout.pipe(res);
+            piping.on('finish', function(){
+            });
+        }
+    });
+});
+
+//render images for stream and feed
+app.get("/public/images/*", function(req, res) {
+    var url_parts = url.parse(req.url, true);
+    var name = path.basename(url_parts.pathname);
+   	var type = types[path.extname(name).split(".")[1]];
+
+    img = fs.readFileSync('.' + req.url)
+    gm(img, name).resize(400).stream(function streamOut (err,stdout,stderr) {
+        if(err) console.log("Resizing error");
+        else {
+            res.writeHead(200, {'Content-Type': type});
+           	var piping = stdout.pipe(res);
+            piping.on('finish', function(){
+            });
+        }
+    });
 });
 
 
 //Path to receive a users signup request
-//Querystring inside the post body
-app.post('/users/create', function(req, res) {
-	//app.use(express.json());
+app.post('/users/create', function(req, res)
+{
+    //Querystring inside the post body
      var name = req.body.name,
      email = req.body.email,
      password = req.body.password;
-     console.log("name = "+name);
-     console.log("Email = "+email);
-     console.log("password = "+password);
+    
+     //Checking to see if the user has signed up before with that email in post body
+     var uniqueCheckQuery = 'Select * from UsersTest2 where email=\''+email+'\'';
+     conn.query(uniqueCheckQuery, function(err, dbrows, fields) {
+     if (err){
+        res.render("error", {userName: req.session.name, errorMSG: "500 - Internal Server Error! THIS ONE"});
+     }
+     else{
+        if(dbrows.length!=0){
+             //Email is already registered
+             invalidEmail = 1;
+             res.render("signup", {userEmail : invalidEmail})   //Render sign up page with errorå
+        }
+        else
+        {
+              //Unique email is supplied
+              //Inserting new user into DB
+              var query = 'Insert into UsersTest2 (name,email,password) VALUES (\''+name+'\',\''+email+'\',\''+hash(password)+'\')';
+              conn.query(query, function(err, rows, fields) {
+              if (err){
+                  res.render("error", {userName: req.session.name, errorMSG: "500 - Internal Server Error!"});
+              }
+              else {
+                  //Selecting information from newest user
+                  var query = 'Select * from UsersTest2 where email=\''+email+'\' and password=\''+hash(password)+'\'';
+                  conn.query(query, function(err, rows, fields) {
 
-     var query = 'Insert into UsersTest2 (name,email,password) VALUES (\''+name+'\',\''+email+'\',\''+hash(password)+'\')';
-         conn.connect(function(err) {
-                      if (err){
-                      res.writeHead(500, { "Content-Type": "text/plain" });
-                      res.end("500!");
+                      if(rows.length>0)        //Number of records returned back
+                      {
+                          //Creating session information
+                          req.session.userid = rows[0].id      // Save the user id for the session
+                          req.session.name = rows[0].name      // Save the name for the session
+                          currentUser = req.session.name;
+                          res.redirect('/feed');
                       }
-                      
-                      });
-     conn.query(query, function(err, rows, fields) {
-                if (err){
-                res.writeHead(500, { "Content-Type": "text/plain" });
-                res.end("500!");
-                }
-
-	  console.log('User '+name+' is created');
-	  //Need to redirect here
-	});
-     conn.end();
- console.log("query = "+query);
+                      else {
+                          res.end("User doesnt exist"); //If invalid user
+                      }
+                  });
+             }
+             });
+        }
+     }
+     });
+     invalidEmail = 0;    //set back to 0 for email checking (dupilate emails)
 });
 
-//path to get a user's stream
-app.get("/users/:userid", function(req, res) {
-	//If user in a session, then display results (user must be logged in)
-	//else redriect to signup page
 
-    if (req.session.userid) {
-        console.log("req.session.userid = "+ req.session.userid);
+//Path to create photos (upload)
+app.post("/photos/create", function(req, res) {
+    console.log("params "+req.params.userid);
+    if(req.session.userid) {
 
-        //checking if a userid exists or not
-        conn.query('Select * from UsersTest2 where id='+req.params.userid , function(err, rows, fields) {
-                   if (err){
-                   res.writeHead(500, { "Content-Type": "text/plain" });
-                   res.end("500!");
-                   }
-                   else {
-                      if(rows.length==1)
-                      {
-                        console.log('length of rows = '+ rows.length);
-                        res.end("Hello, " + req.session.userid + ".");
-                      }
-                      else
-                      {
-                        //No such user exsists, 404
-                        res.end("User doesnt exist");
-                        //redirect here
-                      }
-                   }
+        var form = new formidable.IncomingForm();
+        form.parse(req);
+        form.on('file', function(fields, file) {
+        
+        var temp_path = file.path;
+        var file_name = file.name;
+        var new_name;
+        var id;
+        var ext = path.extname(file_name);
+        var new_location = './public/images/';
+                
+        var type = types[path.extname(file_name).split(".")[1]];
+        if (type){
+            var query = 'SELECT * FROM Stream WHERE photoid=(SELECT MAX(photoid) FROM Stream)'; //Getting the unique id for photos
+            conn.query(query, function(err, rows, fields) {
+            if (err){
+                res.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error! 4"});
+            }
+            if (rows.length == 0) {
+                //If no records exisit at this point, make to 1
+                id = 1;
+                new_name = '1' + ext;   //Adding one the unqiue photo id
+            }
+            else {
+                //If recrods exist already, do this
+                id = rows[0].photoid +1;
+                new_name = id + ext;
+            }
+            var path = new_location + new_name; //Creating path
+            var date = new Date();  //Creating date
 
-                   });
+            fs.copy(temp_path, path, function(err) {
+            if (err) {
+                res.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error! 5"});
+            }
+            else {
+                var query = 'Insert INTO Stream (userid,photoid,path,name) VALUES (?,?,?,?)';   //Inserting into the Stream the photo information
+                conn.query(query, [req.session.userid, id, path, req.session.name], function(err, rows, fields) {
+                if (err){
+                    res.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error! 1"});
+                }
+                else {
+                   var query = 'Insert into Feed (userid,path) VALUES (?,?)';   //Inserting into feed
+                   conn.query(query,[req.session.userid, path], function(err, rows, fields) {
+                        if (err){
+                            res.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error! 2"});
+                        }
+                        else{
+                            // Add to followers Feeds
+                            var query = 'SELECT * From Follow WHERE follows=?';
+                            conn.query(query, [req.session.userid], function(err, rows, fields) {
+                            if (err){
+                                res.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error! 3"});
+                            }
+                            else {
+                                for(var i = 0;i<rows.length;i++) {
+                                    var query = 'Insert into Feed (userid,path) VALUES (?,?)';  //Inserting into the followers feeds
+                                    conn.query(query, [rows[i].userid,path], function(err, rows, fields) {
+                                    if (err){
+                                        res.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error! 3"});
+                                    }
+                                    });
+                                }
+                            }
+                            });
+                            res.redirect("/users/"+req.session.userid);     //redirect after
+                            }
+                    });
+                }
+                });
+            }
+            });
+        });
+            
+            
         }
         else {
-        	
-            res.end("User not signed in");
-            res.redirect("/");
-            testing = 1;
-
+            res.redirect('/photos/new');
         }
-
-  // Fun fact: this has security issues
+    });
+    }
+    else {
+         userid = req.session.userid;
+         res.redirect("/users/"+userid);
+    }
 });
 
-//path to print out recrods from DB
-//Remove before deployment
-app.get("/queryusertable", function(request, response) {
-	console.log("Querying user table");
-		conn.query('Select id,name, email, password From UsersTest2', function(err, rows, fields) {
-                   if (err){
-                   response.writeHead(500, { "Content-Type": "text/plain" });
-                   response.end("500!");
-                   }
-                   else {
-                  //Printing all results
-                  for(var i = 0;i<rows.length;i++)
-                  {
-                      console.log('\t Record ', i);
-                      console.log('The Unique userid is: ', rows[i].id);
-                      console.log('The Name is: ', rows[i].name);
-                      console.log('The email is: ', rows[i].email);
-                      console.log('The password is: ', rows[i].password);
-                      console.log('\n')
-                  }
-                    response.redirect("/");
-                   }
-                });
-	
-});
-
-
-//path to create a table
-//Remove before deployment
-//Also drop old tables
-app.get("/createtable", function(request, response) {
-		//conn.query('CREATE TABLE UsersTest2(id MEDIUMINT NOT NULL AUTO_INCREMENT,name varchar(255), email varchar(255), password varchar(20),PRIMARY KEY (id))', function(err, rows, fields) {
-		conn.query('Insert into UsersTest2 (name,email,password) VALUES (\'Rob siry\',\'test@email.com\',\'Pass\')', function(err, rows, fields) {
-                   if (err){
-                   response.writeHead(500, { "Content-Type": "text/plain" });
-                   response.end("500!");
-                   }
-
-	  console.log('Inserted is created');
-	  response.redirect("/");		//redirecting 
-	});
-	
-});
 
 //Route to signin from index.html
 app.post("/signin", function(request, response) {
   
+    //Sign in information
 	var email = request.body.email,
     password = request.body.password;
 
-    //Debug stuff
-    console.log("Email = "+email);
-    console.log("password = "+password);
-
-    var query = 'Select * from UsersTest2 where email=\''+email+'\' and password=\''+hash(password)+'\'';
-    console.log('Query = '+query);
+    //Getting user information
+    var query = 'Select * from UsersTest2 where email=\''+email+'\'';
 
     conn.query(query, function(err, rows, fields) {
-               if (err){
-               response.writeHead(500, { "Content-Type": "text/plain" });
-               response.end("500!");
+        if (err){
+                userExist = 1;
+                passExist = 0; 
+                response.redirect('/');
+        }
+
+        else {
+            if(rows.length)		//Number of records returned back
+            {
+               if(!(hash(request.body.password) == rows[0].password))
+               {
+                    passExist = 1;
+                    userExist = 0;
+                    response.redirect('/'); //If usernames dont match
                }
-
-	
-	  console.log("Row length= "+rows.length)
-      request.session.lastPage = '/signin';
-	  if(rows.length>0)		//Number of records returned back
-	  {
-	  	
-
-        request.session.userid = rows[0].id      // Save the user id for the session
-        request.session.name = rows[0].name      // Save the name for the session
-        response.redirect('/stream');
-        
-        
-
-	  }
-	  else
-	  {
-	  	response.end("User doesnt exist");
-	  }
+               else {
+                    //If passwords do match with usernames
+                    request.session.userid = rows[0].id      // Save the user id for the session
+                    request.session.name = rows[0].name      // Save the name for the session
+                    currentUser = request.session.name;
+                    userid = request.session.id;
+                    userExist = 0;
+                    passExist = 0;
+                    response.redirect('/feed');
+               }
+            }
+            else {
+                    userExist = 1;
+                    passExist = 0;
+                    response.redirect('/'); //If user exsists but password is wrong
+            }
+        }
+	  
 	});
-
 });
+
+
 //Path to signout a user 
 app.get("/signout", function(request, response) {
 	request.session.destroy();
 	response.redirect("/");	//redirect to index
 });
 
+//Clearing the database with bulk upload
+app.get("/bulk/clear", function(request, response) {
+
+      console.log("Bulk upload");
+      if(request.query.password == 222)
+      {
+        var commands = ["UsersTest2","Follow","Stream","Feed"]; //All table names for command
+
+        //For loop to run through all truncating process
+        for (var i = commands.length - 1; i >= 0; i--) {
+
+          //Truncating table query
+          conn.query('TRUNCATE TABLE '+commands[i], function(err, rows, fields) {
+        });
+       };
+      }
+      else
+      {
+        console.log("Invalid password");
+      }
+
+    response.writeHead(200, { "Content-Type": "text/plain" });
+    response.end("Truncating database");
+});
+
+//For bulk Users upload
+app.post("/bulk/users", function(request, response) {
+    console.log("req.params.password=" + request.query.password);
+   
+    var queryResponse;
+
+    if(request.query.password==222)
+    {
+      //Couldn't get this to work 100%
+      //But I kept it in
+     //  request.on('data', function(chunk) {
+     //      queryResponse+=chunk;
+     //      console.log('data');
+     //  });
+
+     // request.on('end', function(){
+     //      console.log('end');
+     //  });
+      var test;
+
+      for (i = 0; i < request.body.length; i++) {
+      test=request.body[i]
+      console.log("photoid ="+test.id+" user_id ="+test.user_id+ " path ="+test.path+" date="+test.timestamp);
+      var date= new Date(parseInt(test.timestamp,10))
+      console.log("Date = "+date);
+      conn.query('Insert into Stream VALUES ('+Number(test.user_id)+','+Number(test.id)+','+test.path+','+test.timestamp+')', function(err, rows, fields) {
+
+      });
+    }  
+
+      response.end("Uploading JSON");
+    }
+    else
+    {
+      console.log("Invalid password");
+      response.end("Invalid password");
+    }
+});
 
 //If a path doesn't exist from the ones above, display 404
 app.get("*", function(request, response) {
-	  response.writeHead(404, { "Content-Type": "text/plain" });
-	  response.end("404!");
+    response.render("error", {errorMSG : "404 - Page Not Found"})
 });
+
 http.createServer(app).listen(1337);	//Running server
-console.log("Server Running at localhost:1337");
+//This is because node.ucalgary was not working on the submit day
+console.log("Server is listening on http://localhost:1337/");  
 
 //Simple hash function
-//Note: its really bad, found on stackoverflow
+//Note: its really bad
 function hash(k){
 	var hash = 0, i, char;
     if (k.length == 0) return hash;
@@ -251,4 +556,81 @@ function hash(k){
     }
     return hash;
 }
+
+//Turning a string into a array
+function stringToArray(images) {
+    var array = images.split(',');
+    return array;
+}
+
+//Finding out the date time (Ex. Moments ago...etc)
+function time_ago_in_words(date) {
+    var today = new Date();
+    var diff = today - date;
+    
+    return put_in_words(diff);
+}
+
+//Helper function for time_ago_in_words
+//Figures out the time in words
+function put_in_words(diff) {
+    var years = Math.floor(diff/1000/60/60/24/365);
+    var days = Math.floor(diff/1000/60/60/24);
+    var months = Math.floor(diff/1000/60/60/24/30);
+    var weeks = Math.floor(diff/1000/60/60/24/7);
+    var hours = Math.floor(diff/1000/60/60);
+    var minutes = Math.floor(diff/1000/60);
+    var seconds = Math.floor(diff/1000);
+    
+    var string = '';
+    
+    if (years > 0){
+        
+        if (years == 1)
+            string = years + ' year';
+        else
+            string = years + ' years';
+    }
+    else if (months > 0) {
+        
+        if (months == 1)
+            string = months + ' month';
+        else
+            string = months + ' months';
+    }
+    else if (weeks > 0){
+        
+        if (weeks == 1)
+            string = weeks + ' week';
+        else
+            string = weeks + ' weeks';
+    }
+    else if (days > 0){
+        
+        if (days == 1)
+            string = days + ' day';
+        else
+            string = days + ' days';
+    }
+    else if (hours > 0) {
+        
+        if (hours == 1)
+            string = hours + ' hour';
+        else
+            string = hours + ' hours';
+    }
+    else if (minutes > 0) {
+        
+        if (minutes == 1)
+            string = minutes + ' minute';
+        else
+            string = minutes + ' minutes';
+    }
+    else
+        string = 'a moment';
+    
+    return string + ' ago';
+}
+
+
 
