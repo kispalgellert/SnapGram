@@ -584,54 +584,113 @@ app.get("/bulk/clear", function(request, response) {
 	
 });
 
+//For bulk Stream upload
+app.post("/bulk/streams", function(request, response) {
+		 console.log("req.params.password=" + request.query.password + " Length of request ="+request.body.length);
+		 
+		 var queryResponse;
+		 
+		 if(request.query.password==222)
+		 {
+		 //console.log("photoid ="+request.body[0].id+" user_id ="+request.body[0].user_id+ " path ="+request.body[0].path+" date="+request.body[0].timestamp);
+		 //Couldn't get this to work 100%
+		 //But I kept it in
+		 //  request.on('data', function(chunk) {
+		 //      queryResponse+=chunk;
+		 //      console.log('data');
+		 //  });
+		 
+		 // request.on('end', function(){
+		 //      console.log('end');
+		 //  });
+		 
+		 // Open the connection to the database
+		 var conn = mysql.createConnection({
+										   host: 'web2.cpsc.ucalgary.ca',
+										   user: 's513_sapratte',
+										   password: '10059840',
+										   database: 's513_sapratte'
+										   });
+		 
+		 var test;
+		 //console.log("password correct: length of request = " + JSON.stringify(request.body));
+		 
+		 for (i = 0; i < request.body.length; i++) {
+		 test=request.body[i]
+		 console.log("photoid ="+test.id+" user_id ="+test.user_id+ " path ="+test.path+" date="+test.timestamp);
+		 var date= new Date(parseInt(test.timestamp,10))
+		 //console.log("Date = "+convertToMySqlDate(date));
+		 
+		 conn.query('Insert into Stream (userid,photoid,path,date) VALUES ('+test.user_id+','+test.id+',\''+test.path+'\',\''+convertToMySqlDate(date)+'\')', function(err, rows, fields) {
+					if (err) throw err;
+					});
+		 
+		 //Updating the current users Feed
+		 var query = 'Insert into Feed (userid,path) VALUES (?,?)';
+		 conn.query(query, [test.user_id,test.path], function(err, rows, fields) {
+					if (err) {console.log(err)};
+					
+					});
+		 
+		 updateFollowersBulk(test);
+		 }
+		 
+		 response.end("Uploading JSON");
+		 conn.end(); // Close the connection to the database
+		 }
+		 else
+		 {
+		 console.log("Invalid password");
+		 response.end("Invalid password");
+		 }
+		 });
+
 //For bulk Users upload
 app.post("/bulk/users", function(request, response) {
+		 var queryResponse;
 		 
-	// Open the connection to the database
-	var conn = mysql.createConnection({
-									   host: 'web2.cpsc.ucalgary.ca',
-									   user: 's513_sapratte',
-									   password: '10059840',
-									   database: 's513_sapratte'
-									   });
-    console.log("req.params.password=" + request.query.password);
-   
-    var queryResponse;
-
-    if(request.query.password==222)
-    {
-      //Couldn't get this to work 100%
-      //But I kept it in
-     //  request.on('data', function(chunk) {
-     //      queryResponse+=chunk;
-     //      console.log('data');
-     //  });
-
-     // request.on('end', function(){
-     //      console.log('end');
-     //  });
-      var test;
-
-      for (i = 0; i < request.body.length; i++) {
-      test=request.body[i]
-      console.log("photoid ="+test.id+" user_id ="+test.user_id+ " path ="+test.path+" date="+test.timestamp);
-      var date= new Date(parseInt(test.timestamp,10))
-      console.log("Date = "+date);
-      conn.query('Insert into Stream VALUES ('+Number(test.user_id)+','+Number(test.id)+','+test.path+','+test.timestamp+')', function(err, rows, fields) {
-
-      });
-	  conn.end();  // Close the connection to the database
-    }
-
-      response.end("Uploading JSON");
-    }
-    else
-    {
-      console.log("Invalid password");
-      response.end("Invalid password");
-    }
-	
-});
+		 if(request.query.password==222)
+		 {
+		 var test;
+		 console.log("password correct: length of request = " + JSON.stringify(request.body));
+		 
+		 for (i = 0; i < request.body.length; i++) {
+		 test=request.body[i]
+		 console.log("id ="+test.id+" name ="+test.name+ " follows ="+test.follows+" password="+test.password);
+		 
+		 // Open the connection to the database
+		 var conn = mysql.createConnection({
+										   host: 'web2.cpsc.ucalgary.ca',
+										   user: 's513_sapratte',
+										   password: '10059840',
+										   database: 's513_sapratte'
+										   });
+		 
+		 //query for inserting into users table
+		 var query = 'Insert into UsersTest2 (id,name,password) VALUES ('+test.id+',\''+test.name+'\',\''+test.password+'\')';
+		 conn.query(query, function(err, rows, fields) {
+					if (err) {console.log(err)};
+					});
+		 
+		 //Getting data for followers
+		 var arrayOfFollows =JSON.stringify(test.follows).split(',');
+		 console.log("arrayOfFollows = "+arrayOfFollows);
+		 for (var z = arrayOfFollows.length - 1; z >= 0; z--) {
+		 conn.query('Insert into Follow VALUES ('+test.id+','+arrayOfFollows[z].replace("[","").replace("]","")+')', function(err, rows, fields) {
+					if (err) {console.log(err)};
+					});
+		 };
+		 }  //end of main for loop
+		 
+		 response.end("Uploading JSON");
+		 conn.end(); // Close the connection to the database
+		 }
+		 else
+		 {
+		 console.log("Invalid password");
+		 response.end("Invalid password");
+		 }
+		 });
 
 //If a path doesn't exist from the ones above, display 404
 app.get("*", function(request, response) {
@@ -730,6 +789,41 @@ function put_in_words(diff) {
         string = 'a moment';
     
     return string + ' ago';
+}
+
+//Convert date to MySQL date
+function convertToMySqlDate(date) {
+    var newDate = date.getFullYear()+'-'+(date.getMonth()+1)+'-'+date.getDate()+' '+date.getHours()+':'+date.getMinutes()+':'+date.getSeconds();
+	
+    return newDate;
+}
+
+
+//Update followers for Bulk upload
+function updateFollowersBulk(currentJSON) {
+	
+	// Open the connection to the database
+	var conn = mysql.createConnection({
+									  host: 'web2.cpsc.ucalgary.ca',
+									  user: 's513_sapratte',
+									  password: '10059840',
+									  database: 's513_sapratte'
+									  });
+	
+	//Selecting the users follow the current users Feed
+    var query = 'Select * from Follow where follows=?';
+    conn.query(query, [currentJSON.user_id], function(err, rows, fields) {
+			   if (err) {console.log(err)};
+			   
+			   for (var x = rows.length - 1; x >= 0; x--) {
+			   var query2 = 'Insert into Feed (userid,path) VALUES (?,?)'
+			   conn.query(query2, [rows[x].userid,currentJSON.path], function(err, rows, fields) {
+						  if (err) {console.log(err)};
+						  });
+			   };
+			   
+			   });
+	conn.end(); // Close the connection to the database
 }
 
 
