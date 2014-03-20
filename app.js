@@ -2,7 +2,7 @@ var express = require("express");
 var path = require('path');
 var http = require("http");
 var app = express();
-var mysql      = require('mysql');
+var mysql = require('mysql');
 var fs = require('fs-extra');
 var testing; 
 var currentUser;
@@ -22,7 +22,9 @@ var user;
 var types = {
     "jpeg": "image/jpeg",
     "jpg": "image/jpeg",
-    "png": "image/png"};
+    "png": "image/png",
+	"JPG": "image/jpeg"
+};
 
 //Express uses these
 app.set('port', process.env.PORT || 1337);
@@ -39,12 +41,12 @@ app.use(express.static(path.join(__dirname, '/public')));
 app.use(app.router);
 
 // Set the database connetion variables
-conn = mysql.createConnection({
-  host: 'web2.cpsc.ucalgary.ca',
-  user: 's513_sapratte',
-  password: '10059840',
-  database: 's513_sapratte'
-});
+//var conn = mysql.createConnection({
+//  host: 'web2.cpsc.ucalgary.ca',
+//  user: 's513_sapratte',
+//  password: '10059840',
+//  database: 's513_sapratte'
+//});
 
 //All requests do this
 app.all("*", function(request, response, next) {
@@ -73,9 +75,17 @@ app.get("/users/new", function(request, response) {
 // Display the stream of the specified user
 app.get("/users/:userid", function(request, response) 
 {
+	
     // Check if current user is signed in
     if(request.session.userid) 
     {
+		// Open the connection to the database
+		var conn = mysql.createConnection({
+										  host: 'web2.cpsc.ucalgary.ca',
+										  user: 's513_sapratte',
+										  password: '10059840',
+										  database: 's513_sapratte'
+										  });
         var usersimages= '';
         var time = '';
             
@@ -83,7 +93,8 @@ app.get("/users/:userid", function(request, response)
         var q = 'Select * From Stream WHERE userid=? ORDER BY date DESC';
         conn.query(q, [request.params.userid], function(err, rows, fields) {
                 if (err) {
-                    response.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error!"});
+				   
+                    response.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error! 1"});
                 }
 
                 // Save the data
@@ -102,7 +113,8 @@ app.get("/users/:userid", function(request, response)
                 var query = 'Select * from UsersTest2 where id='+request.params.userid
                 conn.query(query, function(err, rows, fields){
                         if (err) {
-                           response.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error!"});
+						   console.log(err);
+                           response.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error! "});
                         }
                         else {
                            // if the user exists query for followers
@@ -110,6 +122,7 @@ app.get("/users/:userid", function(request, response)
                                 var q2='select * from Follow where userid='+request.session.userid+' and follows='+request.params.userid
                                 conn.query(q2 , function(err, rows2, fields){
                                     if (err) {
+										 console.log("Error here 2");
                                         response.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error!"});
                                     }
                                     else if (request.session.userid == request.params.userid) {
@@ -121,8 +134,10 @@ app.get("/users/:userid", function(request, response)
                                     else{
                                         follows = 0;    //Follow button is displayed
                                     }
+									conn.end(); // Close the connection to the database
                                     // Render the Stream page
                                     response.render("stream", {userName: rows[0].name,images: stringToArray(usersimages), following: follows, userId: request.params.userid, currentUId: request.session.userid, navUser : request.session.name, times: stringToArray(time)});
+										   
                                 });
                            }
                            else{
@@ -131,12 +146,14 @@ app.get("/users/:userid", function(request, response)
                         }
                 });
         });
+		
     }
 	else
 	{
         // If the user is not signed in redirect to the Sign in/up page
 		response.redirect("/users/new");
 	}
+	
 });
 
 // Display the Feed of the specified user
@@ -148,11 +165,19 @@ app.get("/feed", function(request, response)
         time = '';
         user = '';
         var streamID = '';
-        
+		
+        // Open the connection to the database
+		var conn = mysql.createConnection({
+										  host: 'web2.cpsc.ucalgary.ca',
+										  user: 's513_sapratte',
+										  password: '10059840',
+										  database: 's513_sapratte'
+										  });
+		
         // Query the Stream and Feed tables for user's feed data
         conn.query('Select Stream.userid,Feed.path,Stream.date,Stream.name From Feed, Stream WHERE Feed.userid=? AND Feed.path=Stream.path ORDER BY Stream.date DESC',[request.session.userid], function(err, rows, fields) {
             if (err){
-                response.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error!"});
+                response.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error! 6"});
             }
             else {
                 for(var i = 0;i<rows.length;i++) {
@@ -174,6 +199,8 @@ app.get("/feed", function(request, response)
                 response.render("feed", {userName: request.session.name, images: stringToArray(usersimages), times: stringToArray(time), users: stringToArray(user), sessionID: request.session.userid, streamID : stringToArray(streamID)});
             }
         });
+		
+		conn.end(); // Close the connection to the database
     }
     else {
         response.redirect("/users/new");    //redirect if not logged in
@@ -182,22 +209,43 @@ app.get("/feed", function(request, response)
 
 
 app.get("/users/:userid/follow", function(request, response, next) {
-        //Inserting a user into the follow table
+		
+	// Open the connection to the database
+	var conn = mysql.createConnection({
+									  host: 'web2.cpsc.ucalgary.ca',
+									  user: 's513_sapratte',
+									  password: '10059840',
+									  database: 's513_sapratte'
+									  });
+	//Inserting a user into the follow table
     var query = 'Insert into Follow VALUES ('+request.session.userid+','+request.params.userid+')';
     conn.query(query, function(err, rows, fields) {
         if (err) throw err;
         response.redirect("/users/"+request.params.userid);
+		conn.end(); // Close the connection to the database
     });
+		
+	
 });
 
 
 app.get("/users/:userid/unfollow", function(request, response, next) {
+	
+	// Open the connection to the database
+	var conn = mysql.createConnection({
+									  host: 'web2.cpsc.ucalgary.ca',
+									  user: 's513_sapratte',
+									  password: '10059840',
+									  database: 's513_sapratte'
+									  });
         //Removing a user from the follow table
     var query ='DELETE FROM Follow where userid='+request.session.userid+' and follows='+request.params.userid;
     conn.query(query, function(err, rows, fields) {
         if (err) throw err;
         response.redirect("/users/"+request.params.userid);
     });
+		
+	conn.end(); // Close the connection to the database
 });
 
 
@@ -272,6 +320,14 @@ app.get("/public/images/*", function(req, res) {
 //Path to receive a users signup request
 app.post('/users/create', function(req, res)
 {
+	 // Open the connection to the database
+	 var conn = mysql.createConnection({
+									   host: 'web2.cpsc.ucalgary.ca',
+									   user: 's513_sapratte',
+									   password: '10059840',
+									   database: 's513_sapratte'
+									   });
+		 
     //Querystring inside the post body
      var name = req.body.name,
      email = req.body.email,
@@ -281,6 +337,7 @@ app.post('/users/create', function(req, res)
      var uniqueCheckQuery = 'Select * from UsersTest2 where email=\''+email+'\'';
      conn.query(uniqueCheckQuery, function(err, dbrows, fields) {
      if (err){
+		console.log(err);
         res.render("error", {userName: req.session.name, errorMSG: "500 - Internal Server Error! THIS ONE"});
      }
      else{
@@ -310,10 +367,12 @@ app.post('/users/create', function(req, res)
                           req.session.name = rows[0].name      // Save the name for the session
                           currentUser = req.session.name;
                           res.redirect('/feed');
+							 
                       }
                       else {
                           res.end("User doesnt exist"); //If invalid user
                       }
+					 conn.end(); // Close the connection to the database
                   });
              }
              });
@@ -321,6 +380,7 @@ app.post('/users/create', function(req, res)
      }
      });
      invalidEmail = 0;    //set back to 0 for email checking (dupilate emails)
+	 
 });
 
 
@@ -342,10 +402,18 @@ app.post("/photos/create", function(req, res) {
                 
         var type = types[path.extname(file_name).split(".")[1]];
         if (type){
+				
+			// Open the connection to the database
+			var conn = mysql.createConnection({
+											  host: 'web2.cpsc.ucalgary.ca',
+											  user: 's513_sapratte',
+											  password: '10059840',
+											  database: 's513_sapratte'
+											  });
             var query = 'SELECT * FROM Stream WHERE photoid=(SELECT MAX(photoid) FROM Stream)'; //Getting the unique id for photos
             conn.query(query, function(err, rows, fields) {
             if (err){
-                res.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error! 4"});
+                res.render("error", {userName: req.session.name, errorMSG: "500 - Internal Server Error! 4"});
             }
             if (rows.length == 0) {
                 //If no records exisit at this point, make to 1
@@ -362,39 +430,41 @@ app.post("/photos/create", function(req, res) {
 
             fs.copy(temp_path, path, function(err) {
             if (err) {
-                res.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error! 5"});
+                res.render("error", {userName: req.session.name, errorMSG: "500 - Internal Server Error! 5"});
             }
             else {
                 var query = 'Insert INTO Stream (userid,photoid,path,name) VALUES (?,?,?,?)';   //Inserting into the Stream the photo information
                 conn.query(query, [req.session.userid, id, path, req.session.name], function(err, rows, fields) {
                 if (err){
-                    res.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error! 1"});
+                    res.render("error", {userName: req.session.name, errorMSG: "500 - Internal Server Error! 1"});
                 }
                 else {
                    var query = 'Insert into Feed (userid,path) VALUES (?,?)';   //Inserting into feed
                    conn.query(query,[req.session.userid, path], function(err, rows, fields) {
                         if (err){
-                            res.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error! 2"});
+                            res.render("error", {userName: req.session.name, errorMSG: "500 - Internal Server Error! 2"});
                         }
                         else{
                             // Add to followers Feeds
                             var query = 'SELECT * From Follow WHERE follows=?';
                             conn.query(query, [req.session.userid], function(err, rows, fields) {
                             if (err){
-                                res.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error! 3"});
+                                res.render("error", {userName: req.session.name, errorMSG: "500 - Internal Server Error! 3"});
                             }
                             else {
                                 for(var i = 0;i<rows.length;i++) {
                                     var query = 'Insert into Feed (userid,path) VALUES (?,?)';  //Inserting into the followers feeds
                                     conn.query(query, [rows[i].userid,path], function(err, rows, fields) {
                                     if (err){
-                                        res.render("error", {userName: request.session.name, errorMSG: "500 - Internal Server Error! 3"});
+                                        res.render("error", {userName: req.session.name, errorMSG: "500 - Internal Server Error! 3"});
                                     }
                                     });
                                 }
                             }
+							conn.end(); // Close the connection to the database
                             });
                             res.redirect("/users/"+req.session.userid);     //redirect after
+							
                             }
                     });
                 }
@@ -403,7 +473,7 @@ app.post("/photos/create", function(req, res) {
             });
         });
             
-            
+		
         }
         else {
             res.redirect('/photos/new');
@@ -420,6 +490,14 @@ app.post("/photos/create", function(req, res) {
 //Route to signin from index.html
 app.post("/signin", function(request, response) {
   
+	 // Open the connection to the database
+	 var conn = mysql.createConnection({
+									   host: 'web2.cpsc.ucalgary.ca',
+									   user: 's513_sapratte',
+									   password: '10059840',
+									   database: 's513_sapratte'
+									   });
+		 
     //Sign in information
 	var email = request.body.email,
     password = request.body.password;
@@ -460,8 +538,9 @@ app.post("/signin", function(request, response) {
                     response.redirect('/'); //If user exsists but password is wrong
             }
         }
-	  
+		conn.end(); // Close the connection to the database
 	});
+	
 });
 
 
@@ -474,6 +553,13 @@ app.get("/signout", function(request, response) {
 //Clearing the database with bulk upload
 app.get("/bulk/clear", function(request, response) {
 
+	// Open the connection to the database
+	var conn = mysql.createConnection({
+									  host: 'web2.cpsc.ucalgary.ca',
+									  user: 's513_sapratte',
+									  password: '10059840',
+									  database: 's513_sapratte'
+									  });
       console.log("Bulk upload");
       if(request.query.password == 222)
       {
@@ -485,6 +571,7 @@ app.get("/bulk/clear", function(request, response) {
           //Truncating table query
           conn.query('TRUNCATE TABLE '+commands[i], function(err, rows, fields) {
         });
+		conn.end(); // Close the connection to the database
        };
       }
       else
@@ -494,10 +581,19 @@ app.get("/bulk/clear", function(request, response) {
 
     response.writeHead(200, { "Content-Type": "text/plain" });
     response.end("Truncating database");
+	
 });
 
 //For bulk Users upload
 app.post("/bulk/users", function(request, response) {
+		 
+	// Open the connection to the database
+	var conn = mysql.createConnection({
+									   host: 'web2.cpsc.ucalgary.ca',
+									   user: 's513_sapratte',
+									   password: '10059840',
+									   database: 's513_sapratte'
+									   });
     console.log("req.params.password=" + request.query.password);
    
     var queryResponse;
@@ -524,7 +620,8 @@ app.post("/bulk/users", function(request, response) {
       conn.query('Insert into Stream VALUES ('+Number(test.user_id)+','+Number(test.id)+','+test.path+','+test.timestamp+')', function(err, rows, fields) {
 
       });
-    }  
+	  conn.end();  // Close the connection to the database
+    }
 
       response.end("Uploading JSON");
     }
@@ -533,12 +630,15 @@ app.post("/bulk/users", function(request, response) {
       console.log("Invalid password");
       response.end("Invalid password");
     }
+	
 });
 
 //If a path doesn't exist from the ones above, display 404
 app.get("*", function(request, response) {
     response.render("error", {errorMSG : "404 - Page Not Found"})
 });
+
+
 
 http.createServer(app).listen(1337);	//Running server
 //This is because node.ucalgary was not working on the submit day
