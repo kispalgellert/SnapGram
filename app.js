@@ -41,12 +41,12 @@ app.use(express.static(path.join(__dirname, '/public')));
 app.use(app.router);
 
 // Set the database connetion variables
-//var conn = mysql.createConnection({
-//  host: 'web2.cpsc.ucalgary.ca',
-//  user: 's513_sapratte',
-//  password: '10059840',
-//  database: 's513_sapratte'
-//});
+var conn = mysql.createConnection({
+  host: 'web2.cpsc.ucalgary.ca',
+  user: 's513_sapratte',
+  password: '10059840',
+  database: 's513_sapratte'
+});
 
 //All requests do this
 app.all("*", function(request, response, next) {
@@ -79,13 +79,6 @@ app.get("/users/:userid", function(request, response)
     // Check if current user is signed in
     if(request.session.userid) 
     {
-		// Open the connection to the database
-		var conn = mysql.createConnection({
-										  host: 'web2.cpsc.ucalgary.ca',
-										  user: 's513_sapratte',
-										  password: '10059840',
-										  database: 's513_sapratte'
-										  });
         var usersimages= '';
         var time = '';
             
@@ -134,7 +127,7 @@ app.get("/users/:userid", function(request, response)
                                     else{
                                         follows = 0;    //Follow button is displayed
                                     }
-									conn.end(); // Close the connection to the database
+									
                                     // Render the Stream page
                                     response.render("stream", {userName: rows[0].name,images: stringToArray(usersimages), following: follows, userId: request.params.userid, currentUId: request.session.userid, navUser : request.session.name, times: stringToArray(time)});
 										   
@@ -166,14 +159,7 @@ app.get("/feed", function(request, response)
         user = '';
         var streamID = '';
 		
-        // Open the connection to the database
-		var conn = mysql.createConnection({
-										  host: 'web2.cpsc.ucalgary.ca',
-										  user: 's513_sapratte',
-										  password: '10059840',
-										  database: 's513_sapratte'
-										  });
-		
+
         // Query the Stream and Feed tables for user's feed data
         conn.query('Select Stream.userid,Feed.path,Stream.date,Stream.name From Feed, Stream WHERE Feed.userid=? AND Feed.path=Stream.path ORDER BY Stream.date DESC',[request.session.userid], function(err, rows, fields) {
             if (err){
@@ -200,7 +186,6 @@ app.get("/feed", function(request, response)
             }
         });
 		
-		conn.end(); // Close the connection to the database
     }
     else {
         response.redirect("/users/new");    //redirect if not logged in
@@ -210,19 +195,13 @@ app.get("/feed", function(request, response)
 
 app.get("/users/:userid/follow", function(request, response, next) {
 		
-	// Open the connection to the database
-	var conn = mysql.createConnection({
-									  host: 'web2.cpsc.ucalgary.ca',
-									  user: 's513_sapratte',
-									  password: '10059840',
-									  database: 's513_sapratte'
-									  });
+
 	//Inserting a user into the follow table
     var query = 'Insert into Follow VALUES ('+request.session.userid+','+request.params.userid+')';
     conn.query(query, function(err, rows, fields) {
         if (err) throw err;
         response.redirect("/users/"+request.params.userid);
-		conn.end(); // Close the connection to the database
+		
     });
 		
 	
@@ -231,13 +210,7 @@ app.get("/users/:userid/follow", function(request, response, next) {
 
 app.get("/users/:userid/unfollow", function(request, response, next) {
 	
-	// Open the connection to the database
-	var conn = mysql.createConnection({
-									  host: 'web2.cpsc.ucalgary.ca',
-									  user: 's513_sapratte',
-									  password: '10059840',
-									  database: 's513_sapratte'
-									  });
+
         //Removing a user from the follow table
     var query ='DELETE FROM Follow where userid='+request.session.userid+' and follows='+request.params.userid;
     conn.query(query, function(err, rows, fields) {
@@ -245,7 +218,7 @@ app.get("/users/:userid/unfollow", function(request, response, next) {
         response.redirect("/users/"+request.params.userid);
     });
 		
-	conn.end(); // Close the connection to the database
+
 });
 
 
@@ -320,13 +293,7 @@ app.get("/public/images/*", function(req, res) {
 //Path to receive a users signup request
 app.post('/users/create', function(req, res)
 {
-	 // Open the connection to the database
-	 var conn = mysql.createConnection({
-									   host: 'web2.cpsc.ucalgary.ca',
-									   user: 's513_sapratte',
-									   password: '10059840',
-									   database: 's513_sapratte'
-									   });
+
 		 
     //Querystring inside the post body
      var name = req.body.name,
@@ -372,7 +339,7 @@ app.post('/users/create', function(req, res)
                       else {
                           res.end("User doesnt exist"); //If invalid user
                       }
-					 conn.end(); // Close the connection to the database
+					 
                   });
              }
              });
@@ -403,13 +370,7 @@ app.post("/photos/create", function(req, res) {
         var type = types[path.extname(file_name).split(".")[1]];
         if (type){
 				
-			// Open the connection to the database
-			var conn = mysql.createConnection({
-											  host: 'web2.cpsc.ucalgary.ca',
-											  user: 's513_sapratte',
-											  password: '10059840',
-											  database: 's513_sapratte'
-											  });
+
             var query = 'SELECT * FROM Stream WHERE photoid=(SELECT MAX(photoid) FROM Stream)'; //Getting the unique id for photos
             conn.query(query, function(err, rows, fields) {
             if (err){
@@ -461,7 +422,7 @@ app.post("/photos/create", function(req, res) {
                                     });
                                 }
                             }
-							conn.end(); // Close the connection to the database
+							
                             });
                             res.redirect("/users/"+req.session.userid);     //redirect after
 							
@@ -490,13 +451,7 @@ app.post("/photos/create", function(req, res) {
 //Route to signin from index.html
 app.post("/signin", function(request, response) {
   
-	 // Open the connection to the database
-	 var conn = mysql.createConnection({
-									   host: 'web2.cpsc.ucalgary.ca',
-									   user: 's513_sapratte',
-									   password: '10059840',
-									   database: 's513_sapratte'
-									   });
+
 		 
     //Sign in information
 	var email = request.body.email,
@@ -538,7 +493,7 @@ app.post("/signin", function(request, response) {
                     response.redirect('/'); //If user exsists but password is wrong
             }
         }
-		conn.end(); // Close the connection to the database
+		
 	});
 	
 });
@@ -553,13 +508,7 @@ app.get("/signout", function(request, response) {
 //Clearing the database with bulk upload
 app.get("/bulk/clear", function(request, response) {
 
-	// Open the connection to the database
-	var conn = mysql.createConnection({
-									  host: 'web2.cpsc.ucalgary.ca',
-									  user: 's513_sapratte',
-									  password: '10059840',
-									  database: 's513_sapratte'
-									  });
+
       console.log("Bulk upload");
       if(request.query.password == 222)
       {
@@ -571,8 +520,9 @@ app.get("/bulk/clear", function(request, response) {
           //Truncating table query
           conn.query('TRUNCATE TABLE '+commands[i], function(err, rows, fields) {
         });
-		conn.end(); // Close the connection to the database
+		
        };
+		
       }
       else
       {
@@ -587,6 +537,7 @@ app.get("/bulk/clear", function(request, response) {
 //For bulk Stream upload
 app.post("/bulk/streams", function(request, response) {
 		 console.log("req.params.password=" + request.query.password + " Length of request ="+request.body.length);
+		 console.log("Path : "+ request.body);
 		 
 		 var queryResponse;
 		 
@@ -604,13 +555,7 @@ app.post("/bulk/streams", function(request, response) {
 		 //      console.log('end');
 		 //  });
 		 
-		 // Open the connection to the database
-		 var conn = mysql.createConnection({
-										   host: 'web2.cpsc.ucalgary.ca',
-										   user: 's513_sapratte',
-										   password: '10059840',
-										   database: 's513_sapratte'
-										   });
+
 		 
 		 var test;
 		 //console.log("password correct: length of request = " + JSON.stringify(request.body));
@@ -636,7 +581,7 @@ app.post("/bulk/streams", function(request, response) {
 		 }
 		 
 		 response.end("Uploading JSON");
-		 conn.end(); // Close the connection to the database
+		 
 		 }
 		 else
 		 {
@@ -647,24 +592,23 @@ app.post("/bulk/streams", function(request, response) {
 
 //For bulk Users upload
 app.post("/bulk/users", function(request, response) {
+		 
+		 var countOfJSONlines = 0;
+
 		 var queryResponse;
 		 
 		 if(request.query.password==222)
 		 {
 		 var test;
-		 console.log("password correct: length of request = " + JSON.stringify(request.body));
+		 console.log("password correct: Body= " + JSON.stringify(request.body));
 		 
+
+		 console.log("Test ID here ="+request.body[0].id);
 		 for (i = 0; i < request.body.length; i++) {
 		 test=request.body[i]
 		 console.log("id ="+test.id+" name ="+test.name+ " follows ="+test.follows+" password="+test.password);
 		 
-		 // Open the connection to the database
-		 var conn = mysql.createConnection({
-										   host: 'web2.cpsc.ucalgary.ca',
-										   user: 's513_sapratte',
-										   password: '10059840',
-										   database: 's513_sapratte'
-										   });
+		 
 		 
 		 //query for inserting into users table
 		 var query = 'Insert into UsersTest2 (id,name,password) VALUES ('+test.id+',\''+test.name+'\',\''+test.password+'\')';
@@ -678,12 +622,14 @@ app.post("/bulk/users", function(request, response) {
 		 for (var z = arrayOfFollows.length - 1; z >= 0; z--) {
 		 conn.query('Insert into Follow VALUES ('+test.id+','+arrayOfFollows[z].replace("[","").replace("]","")+')', function(err, rows, fields) {
 					if (err) {console.log(err)};
+					
+						
 					});
+		 
 		 };
 		 }  //end of main for loop
 		 
 		 response.end("Uploading JSON");
-		 conn.end(); // Close the connection to the database
 		 }
 		 else
 		 {
@@ -791,6 +737,10 @@ function put_in_words(diff) {
     return string + ' ago';
 }
 
+if (typeof exports !== 'undefined') {
+    exports.put_in_words = put_in_words
+}
+
 //Convert date to MySQL date
 function convertToMySqlDate(date) {
     var newDate = date.getFullYear()+'-'+(date.getMonth()+1)+'-'+date.getDate()+' '+date.getHours()+':'+date.getMinutes()+':'+date.getSeconds();
@@ -802,13 +752,7 @@ function convertToMySqlDate(date) {
 //Update followers for Bulk upload
 function updateFollowersBulk(currentJSON) {
 	
-	// Open the connection to the database
-	var conn = mysql.createConnection({
-									  host: 'web2.cpsc.ucalgary.ca',
-									  user: 's513_sapratte',
-									  password: '10059840',
-									  database: 's513_sapratte'
-									  });
+
 	
 	//Selecting the users follow the current users Feed
     var query = 'Select * from Follow where follows=?';
@@ -823,7 +767,7 @@ function updateFollowersBulk(currentJSON) {
 			   };
 			   
 			   });
-	conn.end(); // Close the connection to the database
+
 }
 
 
